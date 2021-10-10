@@ -9620,6 +9620,47 @@ NaN 12.3   33.0
 
         return correl
 
+    def pearson_cross(self, other, min_periods=1):
+        """
+        Compute cross correlation of columns, excluding NA/null values.
+        Parameters
+        ----------
+        other : DataFrame
+            Object with which to compute correlations.
+        min_periods : int, optional
+            Minimum number of observations required per pair of columns
+            to have a valid result. Currently only available for Pearson
+            and Spearman correlation.
+        Returns
+        -------
+        DataFrame
+            Correlation matrix.
+        See Also
+        --------
+        DataFrame.corrwith
+        Series.corr
+        Examples
+        --------
+        >>> df_1 = pd.DataFrame([(.2, .3), (.0, .6), (.6, .0), (.2, .1)],
+        ...                   columns=['dogs', 'cats'])
+        >>> df_2 = pd.DataFrame([(.1, .3), (.2, .4), (.6, .1), (.3, .5)],
+        ...                   columns=['mouses', 'pigs'])
+        >>> df_1.pearson_cross(df_2)
+                mouses      pigs
+        dogs  0.858395 -0.814345
+        cats -0.699854  0.405741
+        """
+        numeric_df_1 = self._get_numeric_data()
+        numeric_df_2 = other._get_numeric_data()
+        idx = numeric_df_1.columns
+        cols = numeric_df_2.columns
+        mat_1 = numeric_df_1.to_numpy(dtype=float, na_value=np.nan, copy=False)
+        mat_2 = numeric_df_2.to_numpy(dtype=float, na_value=np.nan, copy=False)
+
+        correl = libalgos.nancorr_cross(mat_1, mat_2, minp=min_periods)
+
+        return self._constructor(correl, index=idx, columns=cols)
+
     # ----------------------------------------------------------------------
     # ndarray-like stats methods
 

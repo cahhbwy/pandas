@@ -372,6 +372,75 @@ def nancorr(const float64_t[:, :] mat, bint cov=False, minp=None):
 
     return result
 
+
+# ----------------------------------------------------------------------
+# Cross correlation/covariance
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def nancorr_cross(const float64_t[:, :] mat_1, const float64_t[:, :] mat_2, bint cov=False, minp=None):
+    cdef:
+        Py_ssize_t i, j, xi, yi, N_1, N_2, N, K_1, K_2
+        bint minpv
+        ndarray[float64_t, ndim=2] result
+        ndarray[uint8_t, ndim=2] mask_1, mask_2
+        int64_t nobs = 0
+        float64_t vx, vy, sumx, sumy, sumxx, sumyy, meanx, meany, divisor
+
+    N_1, K_1 = (<object>mat_1).shape
+    N_2, K_2 = (<object>mat_2).shape
+    N = min(N_1, N_2)
+
+    if minp is None:
+        minpv = 1
+    else:
+        minpv = <int>minp
+
+    result = np.empty((K_1, K_2), dtype=np.float64)
+    mask_1 = np.isfinite(mat_1).view(np.uint8)
+    mask_2 = np.isfinite(mat_2).view(np.uint8)
+
+    with nogil:
+        for xi in range(K_1):
+            for yi in range(K_2):
+                # Welford's method for the variance-calculation
+                # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+                nobs = sumxx = sumyy = sumx = sumy = 0
+                for i in range(N):
+                    if mask_1[i, xi] and mask_2[i, yi]:
+                        vx = mat_1[i, xi]
+                        vy = mat_2[i, yi]
+                        nobs += 1
+                        sumx += vx
+                        sumy += vy
+
+                if nobs < minpv:
+                    result[xi, yi] = NaN
+                else:
+                    meanx = sumx / nobs
+                    meany = sumy / nobs
+
+                    # now the cov numerator
+                    sumx = 0
+
+                    for i in range(N):
+                        if mask_1[i, xi] and mask_2[i, yi]:
+                            vx = mat_1[i, xi] - meanx
+                            vy = mat_2[i, yi] - meany
+
+                            sumx += vx * vy
+                            sumxx += vx * vx
+                            sumyy += vy * vy
+
+                    divisor = (nobs - 1.0) if cov else sqrt(sumxx * sumyy)
+
+                    if divisor != 0:
+                        result[xi, yi] = sumx / divisor
+                    else:
+                        result[xi, yi] = NaN
+
+    return result
+
 # ----------------------------------------------------------------------
 # Pairwise Spearman correlation
 
